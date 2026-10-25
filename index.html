@@ -201,6 +201,7 @@ button:focus-visible,a:focus-visible,[tabindex]:focus-visible{outline:2px solid 
   padding:0 2px 8px;
   scroll-behavior:smooth;
 }
+.page > *{flex-shrink:0}
 .page.view-in{animation:viewIn .32s cubic-bezier(.2,.7,.2,1)}
 @keyframes viewIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 .page-head{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;padding:6px 4px 0}
@@ -428,7 +429,7 @@ table.tbl .t-strong{font-weight:600}
   padding:0;overflow:hidden;max-height:calc(100vh - 190px);
 }
 .cart-head{padding:14px 14px 10px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
-.cart-head h3{font-size:13.5px;font-weight:650}
+.cart-head h3{font-size:13.5px;font-weight:650;white-space:nowrap}
 .cart-items{flex:1;overflow:auto;padding:6px 8px;min-height:120px}
 .cart-line{display:grid;grid-template-columns:1fr auto;gap:8px;padding:9px 6px;border-bottom:1px solid var(--line)}
 .cart-line:last-child{border-bottom:0}
@@ -469,7 +470,7 @@ table.tbl .t-strong{font-weight:600}
 .modal-foot{padding:13px 18px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;background:var(--surface-2);border-radius:0 0 22px 22px}
 
 /* toast */
-.toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:200;max-width:340px}
+.toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:200;max-width:340px;pointer-events:none}
 .toast{
   background:var(--green-950);color:#fff;border-radius:12px;padding:10px 14px;font-size:12.5px;
   box-shadow:0 20px 40px -22px rgba(3,26,14,.9);display:flex;gap:9px;align-items:flex-start;
@@ -563,14 +564,85 @@ table.tbl .t-strong{font-weight:600}
 .receipt-paper .r-row{display:flex;justify-content:space-between;gap:6px}
 .receipt-paper h4{margin:0 0 2px;font-size:13px;letter-spacing:.5px}
 
-/* mobile */
-.mobile-cartbar{display:none}
+/* ==========================================================================
+   Responsive
+   Phones:  320 – 729   single-column POS, bottom tab bar, floating basket
+   Tablets: 730 – 980   two-column POS with a visible basket, bottom tab bar
+   Laptops: 981 – 1180  sidebar rail, two-column POS
+   ========================================================================== */
+
+.mobile-cartbar{display:none;transition:opacity .2s ease,transform .2s ease}
+.mobile-cartbar.hide{opacity:0;transform:translateY(10px);pointer-events:none}
+.mobile-cartbar.empty{display:none!important}
+
+/* ---- small laptops / large tablets ---- */
+@media (max-width:1180px){
+  .dash .col-3,.dash .col-4,.dash .col-5{grid-column:span 6}
+  .pos{grid-template-columns:minmax(0,1fr) 330px}
+  .pos-toolbar .search-box{flex:1 1 100%}
+  .pos-toolbar .btn{flex:1 1 auto}
+}
+
+/* ---- tablet & phone shell ---- */
 @media (max-width:980px){
-  .side-btn .tip{display:none}
-  .page{padding-bottom:84px}
-  .pos-toolbar .search-box{flex:1 1 100%!important;min-width:0}
-  .pos-toolbar .btn{flex:1}
-  .cart-foot{position:static}
+  .stage{padding:0;height:100dvh}
+  .app{border-radius:0;height:100dvh;min-height:0;padding:10px 10px 0;overflow:hidden}
+  .workspace{grid-template-columns:1fr!important}
+  .page{
+    overflow-y:auto;height:auto;flex:1;min-height:0;
+    padding-bottom:calc(80px + env(safe-area-inset-bottom,0px));
+    overscroll-behavior:contain;
+  }
+  .card-head{flex-wrap:wrap}
+  .card-head .seg{margin-left:0}
+  .side-btn .s-label{display:none!important}
+  .side-toggle{display:none!important}
+  .app.nav-open .workspace{grid-template-columns:1fr}
+  .nav-pill{display:none}
+  .brand{min-width:0}
+  .sidebar{
+    position:fixed;bottom:0;left:0;right:0;top:auto;height:auto;max-height:none;z-index:70;
+    flex-direction:row;justify-content:flex-start;align-items:center;gap:3px;
+    overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;
+    scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;
+    background:#fff;border-top:1px solid var(--line);
+    padding:7px 9px calc(7px + env(safe-area-inset-bottom,0px));border-radius:0;
+  }
+  .sidebar::-webkit-scrollbar{display:none}
+  .side-btn{width:42px;height:40px;padding:0 10px;scroll-snap-align:center}
+  .sidebar .side-sep,.sidebar .spacer{display:none}
+  .pos{grid-template-columns:1fr}
+  .page-title{font-size:24px}
+  .dash .col-3,.dash .col-4,.dash .col-5,.dash .col-6,.dash .col-7,.dash .col-8,.dash .col-9{grid-column:span 12}
+  .split-2{grid-template-columns:1fr}
+  .topbar{border-radius:16px;top:4px}
+  .receipt-paper{width:100%!important}
+  /* platform utility icons live in Settings on small screens — keeps all
+     16 modules reachable in one row without scrolling on 768+ */
+  .sidebar [data-action="help"],.sidebar [data-action="lock"]{display:none}
+  .toasts{
+    left:10px;right:10px;bottom:calc(86px + env(safe-area-inset-bottom,0px));
+    max-width:none;
+  }
+}
+
+/* ---- tablets: keep the basket beside the catalogue ---- */
+@media (min-width:730px) and (max-width:980px){
+  .pos{grid-template-columns:minmax(0,1fr) 276px;gap:12px}
+  .cart-card{
+    position:sticky;top:0;max-height:calc(100vh - 260px);
+  }
+  .prod-grid{max-height:calc(100vh - 320px)}
+  .mobile-cartbar{display:none!important}
+  .page-head [data-action="checkout"]{display:inline-flex}
+}
+
+/* ---- phones: single column POS + floating basket ---- */
+@media (max-width:729px){
+  .pos{grid-template-columns:1fr}
+  .cart-card{position:static;max-height:none}
+  .prod-grid{max-height:none}
+  .page-head [data-action="checkout"]{display:none}
   .mobile-cartbar{
     display:flex;align-items:center;gap:10px;position:sticky;bottom:74px;z-index:35;
     background:var(--green-900);color:#fff;border-radius:14px;padding:10px 12px;
@@ -579,47 +651,94 @@ table.tbl .t-strong{font-weight:600}
   .mobile-cartbar .grow{flex:1;min-width:0}
   .mobile-cartbar .tiny{color:rgba(255,255,255,.66)}
   .mobile-cartbar .btn{background:#fff;color:var(--green-900);border-color:transparent;flex:none}
-  .receipt-paper{width:100%!important}
-  .page-head [data-action="checkout"]{display:none}
 }
-@media (max-width:1180px){
-  .dash .col-3,.dash .col-4,.dash .col-5{grid-column:span 6}
-  .pos{grid-template-columns:1fr 330px}
-  .pos-toolbar .search-box{flex:1 1 100%}
+
+/* ---- phones: tighten typography and stack form grids ---- */
+@media (max-width:600px){
+  .page{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px))}
+  .page-head{gap:10px;padding-top:4px}
+  .head-tools{gap:6px}
+  .card{padding:13px}
+  .card-head > .seg{flex:0 0 100%;margin-top:6px}
+  .card-head > .btn{margin-left:auto}
+  .grid2,.grid3,.grid4{grid-template-columns:1fr}
+  .form-actions{flex-wrap:wrap}
+  .form-actions .btn[type=submit],.form-actions .btn.primary{flex:1}
+  .modal{border-radius:18px}
+  .modal-head{padding:14px}
+  .modal-body{padding:14px;gap:11px}
+  .modal-foot{padding:12px 14px;border-radius:0 0 18px 18px}
+  .bars{gap:4px;height:132px}
+  .bar-x{font-size:8.5px;letter-spacing:0}
+  .bars .bar-col:nth-child(even) .bar-x{visibility:hidden}
+  .bar-tag{font-size:9px;padding:1px 5px;top:-19px}
+  .topbar{padding:8px 10px;gap:8px}
+  .brand{flex:1 1 auto;min-width:0}
+  .brand-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px}
+  .icon-btn{width:33px;height:33px}
+  .avatar{width:31px;height:31px}
+  .pos-toolbar{gap:7px}
+  .pos-toolbar .search-box{flex:1 1 100%!important;min-width:0}
   .pos-toolbar .btn{flex:1 1 auto}
+  .setup{padding:10px}
+  .setup-card{padding:18px;border-radius:20px}
+  .setup h1{font-size:21px}
+  .type-grid{grid-template-columns:1fr 1fr}
+  .type-opt{padding:9px;font-size:11.5px;gap:6px}
+  .type-opt .em{font-size:14px}
 }
-@media (max-width:980px){
-  .stage{padding:0;height:100dvh}
-  .app{border-radius:0;height:100dvh;min-height:0;padding:10px 10px 0;overflow:hidden}
-  .workspace{grid-template-columns:1fr!important}
-  .page{overflow-y:auto;height:auto;flex:1;min-height:0;padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
-  .card-head{flex-wrap:wrap}
-  .card-head .seg{margin-left:0}
-  .side-label{display:none}
-  .side-btn .s-label{display:none!important}
-  .side-toggle{display:none!important}
-  .app.nav-open .workspace{grid-template-columns:1fr}
-  .nav-pill{display:none}
-  .brand{min-width:0}
-  .workspace{grid-template-columns:1fr}
-  .sidebar{
-    position:fixed;bottom:0;left:0;right:0;top:auto;height:auto;max-height:none;z-index:70;
-    flex-direction:row;justify-content:flex-start;align-items:center;gap:4px;
-    overflow-x:auto;overflow-y:hidden;
-    background:#fff;border-top:1px solid var(--line);
-    padding:7px 9px calc(7px + env(safe-area-inset-bottom,0px));border-radius:0;
-  }
-  .side-btn{width:44px;height:42px;padding:0 13px}
-  .sidebar .side-sep,.sidebar .spacer{display:none}
-  .page{padding-bottom:80px;height:auto}
-  .pos{grid-template-columns:1fr}
-  .cart-card{position:static;max-height:none}
+
+/* ---- small phones: 2-row toolbar, compact controls ---- */
+@media (max-width:430px){
+  .pos-toolbar .btn{flex:1 1 calc(50% - 4px);padding:0 10px}
+  .pos-toolbar .btn:last-child{flex:1 1 100%}
+  .modal-body{padding:13px}
+  .modal-foot{padding:11px 13px}
+  .modal-foot .btn{padding:0 12px}
+  .page-title{font-size:22px}
+  .seg button{padding:5px 10px;font-size:11px}
+  .stat{padding:10px 11px}
+  .balance-card .amount{font-size:24px}
+  .cart-line{grid-template-columns:minmax(0,1fr) auto}
+  .cart-foot{padding:11px 12px}
+  .pay-row{grid-template-columns:minmax(0,1fr) 96px 24px!important;gap:6px!important}
+}
+
+@media (max-width:360px){
+  .quick-grid{grid-template-columns:1fr!important}
+  .brand-name{font-size:13.5px}
+  .topbar{padding:7px 9px}
+  .icon-btn{width:31px;height:31px}
+  .pos-toolbar .btn{padding:0 8px;font-size:11px;gap:5px}
+  .pos-toolbar .btn svg{width:12px;height:12px}
+  .page-title{font-size:21px}
+  .pos-toolbar .search-box input{font-size:12px}
+}
+
+/* ---- short viewports: phone / tablet landscape ---- */
+@media (max-height:520px) and (max-width:980px){
+  .topbar{padding:6px 10px;border-radius:14px}
+  .brand-mark{width:26px;height:26px}
+  .brand-name{font-size:14px}
+  .page-head{display:none}
+  .page-title{font-size:20px;letter-spacing:-.8px}
+  .page-sub{display:none}
+  .card{padding:12px}
+  .page{padding-bottom:calc(64px + env(safe-area-inset-bottom,0px))}
+  .sidebar{padding:4px 8px calc(4px + env(safe-area-inset-bottom,0px))}
+  .side-btn{width:38px;height:36px;padding:0 9px}
+  .cart-card{max-height:calc(100vh - 120px)}
   .prod-grid{max-height:none}
-  .page-title{font-size:24px}
-  .dash .col-3,.dash .col-4,.dash .col-5,.dash .col-6,.dash .col-7,.dash .col-8,.dash .col-9{grid-column:span 12}
-  .split-2{grid-template-columns:1fr}
-  .topbar{border-radius:16px;top:4px}
+  .pos-toolbar .btn{flex:1 1 auto;height:32px;padding:0 10px;font-size:11.5px}
+  .pos-toolbar input[type=search]{height:34px}
+  .cat-scroll{padding:6px 0 2px}
+  .mobile-cartbar{bottom:54px;padding:6px 10px;gap:8px}
+  .mobile-cartbar .tiny{display:none}
+  .mobile-cartbar .grow{display:flex;align-items:center;gap:8px}
+  .mobile-cartbar .btn{height:32px;font-size:11.5px}
+  .toasts{bottom:calc(66px + env(safe-area-inset-bottom,0px))}
 }
+
 @media print{
   html,body{background:#fff!important;margin:0!important;padding:0!important;overflow:visible!important;height:auto!important}
   .stage,.setup,.overlay,.toasts,.topbar,.sidebar,.page-head,.no-print,.pos-main,.mobile-cartbar{display:none!important}
@@ -2029,6 +2148,7 @@ function afterRender(view){
   if (view === 'pos'){
     renderProductGrid();
     renderCartPanel();
+    watchCartBar();
   }
 }
 function updateHeaderFor(view){ /* hook for focused views (POS focuses search) */
@@ -2308,7 +2428,7 @@ function quickActionsCard(){
       <div class="card-icon">${icon('grid', 13)}</div>
       <div class="grow"><h3>Quick actions</h3><div class="muted">Jump to common tasks</div></div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+    <div class="quick-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       ${acts.map(([v, label, ic]) => `<button class="btn" style="justify-content:flex-start;height:42px;border-radius:12px" data-view="${v}">${icon(ic, 14)} ${esc(label)}</button>`).join('')}
     </div>
     <div class="notice info" style="margin-top:12px">${icon('info', 14)}<span>Data is stored in this browser. Export a backup regularly from Settings → Data.</span></div>
@@ -2370,10 +2490,24 @@ function productTile(p){
     </div>
   </button>`;
 }
+let cartBarObserver = null;
+function watchCartBar(){
+  const bar = $('#mobileCartBar'), cart = $('#cartPanel'), page = $('#page');
+  if (!bar || !cart || !('IntersectionObserver' in window)) return;
+  if (cartBarObserver) cartBarObserver.disconnect();
+  cartBarObserver = new IntersectionObserver(entries => {
+    const e = entries[0];
+    if (!e) return;
+    bar.classList.toggle('hide', e.isIntersecting && e.intersectionRatio >= 0.4);
+  }, { root: page, threshold: [0, 0.4, 0.6] });
+  cartBarObserver.observe(cart);
+}
+
 function renderMobileBar(){
   const el = $('#mobileCartBar');
   if (!el) return;
   const t = computeCart(getCart());
+  el.classList.toggle('empty', t.lines.length === 0);
   el.innerHTML = `<div class="grow"><div class="tiny">${t.qty} item${t.qty === 1 ? '' : 's'} in basket</div>
     <div style="font-weight:650;font-size:15px;font-variant-numeric:tabular-nums">${esc(money(t.total))}</div></div>
     <button class="btn" data-action="checkout" ${t.lines.length ? '' : 'disabled'}>Checkout ${icon('chevronRight', 13)}</button>`;
