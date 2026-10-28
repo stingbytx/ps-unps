@@ -564,6 +564,55 @@ table.tbl .t-strong{font-weight:600}
 .receipt-paper .r-row{display:flex;justify-content:space-between;gap:6px}
 .receipt-paper h4{margin:0 0 2px;font-size:13px;letter-spacing:.5px}
 
+
+/* ---------- plans & licences ---------- */
+.plan-chip{
+  height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--line);
+  background:var(--surface-2);color:var(--text-2);
+  font-size:10px;font-weight:750;letter-spacing:.5px;text-transform:uppercase;
+  transition:background .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease;
+}
+.plan-chip:hover{transform:translateY(-1px);border-color:var(--green-200);color:var(--green-800)}
+.plan-chip.pro{
+  background:linear-gradient(135deg,var(--green-500),var(--green-800));
+  border-color:transparent;color:#fff;box-shadow:0 6px 14px -8px rgba(4,164,76,.9);
+}
+@media (max-width:600px){.plan-chip{display:none}}
+.side-btn .lock-badge{
+  position:absolute;right:5px;bottom:4px;display:grid;place-items:center;
+  width:13px;height:13px;border-radius:50%;background:var(--surface-3);color:var(--muted);
+  border:1px solid #fff;
+}
+.side-btn .lock-badge svg{width:7px;height:7px}
+.app.nav-open .side-btn .lock-badge{
+  position:static;margin-left:auto;width:14px;height:14px;flex:none;
+  background:transparent;border:0;color:var(--muted-2);
+}
+.app.nav-open .side-btn .lock-badge svg{width:11px;height:11px}
+.side-btn.locked:hover .lock-badge{color:var(--green-700)}
+.plan-compare{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.plan-box{
+  border:1px solid var(--line);border-radius:14px;padding:13px;background:#fff;min-width:0;
+}
+.plan-box.pro{border-color:var(--green-200);background:linear-gradient(180deg,var(--green-50),#fff)}
+.plan-price{font-size:21px;font-weight:700;letter-spacing:-.7px;margin:4px 0 1px;font-variant-numeric:tabular-nums}
+.plan-list{list-style:none;padding:0;margin:9px 0 0;display:flex;flex-direction:column;gap:5px;font-size:11.5px;color:var(--text-2);line-height:1.4}
+.plan-list li{display:flex;gap:6px;align-items:flex-start}
+.plan-list li svg{width:12px;height:12px;color:var(--green-700);flex:none;margin-top:2px}
+.plan-list li.off{color:var(--muted)}
+.plan-list li.off svg{color:var(--muted-2)}
+.plan-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}
+.plan-current{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.plan-current .plan-orb{
+  width:44px;height:44px;border-radius:14px;display:grid;place-items:center;flex:none;
+  background:var(--green-50);color:var(--green-800);
+}
+.plan-current .plan-orb.pro{background:linear-gradient(135deg,var(--green-500),var(--green-800));color:#fff}
+@media (max-width:600px){
+  .plan-compare{grid-template-columns:1fr}
+  .plan-price{font-size:19px}
+}
+
 /* ==========================================================================
    Responsive
    Phones:  320 – 729   single-column POS, bottom tab bar, floating basket
@@ -768,6 +817,7 @@ table.tbl .t-strong{font-weight:600}
       </div>
       <nav class="nav-pill" id="navPill"></nav>
       <div class="top-actions">
+        <button class="plan-chip" id="planChip" data-action="upgrade" title="Compare Free and Pro">Free</button>
         <span class="net-pill" id="netPill" title="Core features work offline"><span class="net-dot"></span><span id="netLabel">Online</span></span>
         <button class="icon-btn" id="btnGlobalSearch" title="Global search (/)"></button>
         <button class="icon-btn" id="btnNotif" title="Notifications">
@@ -1237,7 +1287,7 @@ const NAV = [
 /* --------------------------------------------------------------- storage */
 function emptyDB(){
   return {
-    meta:{schemaVersion:SCHEMA_VERSION, appVersion:APP_VERSION, seq:1000, lastBackup:null, createdAt:new Date().toISOString()},
+    meta:{schemaVersion:SCHEMA_VERSION, appVersion:APP_VERSION, seq:1000, lastBackup:null, createdAt:new Date().toISOString(), plan:{tier:'free'}},
     config:null,
     products:[], categories:[], sales:[], customers:[], suppliers:[],
     purchases:[], movements:[], expenses:[], employees:[], shifts:[],
@@ -1415,8 +1465,10 @@ function openModal(opts){
   m.className = 'modal' + (opts.size === 'wide' ? ' wide' : opts.size === 'narrow' ? ' narrow' : '');
   $('#overlay').classList.add('on');
   if (opts.onMount) opts.onMount($('#modalBody'));
-  const first = $('#modalBody').querySelector('input,select,textarea');
-  if (first) setTimeout(() => first.focus(), 40);
+  if (!opts.noFocus){
+    const first = $('#modalBody').querySelector('input,select,textarea');
+    if (first) setTimeout(() => first.focus(), 40);
+  }
   modalStack.push(opts);
 }
 function closeModal(){
@@ -1770,7 +1822,7 @@ function completeSale(payments, opts){
     customer.totalSpent = (customer.totalSpent || 0) + totals.total;
     customer.lastPurchase = sale.at;
     const cfg = DB.config.loyalty || {};
-    if (cfg.enabled){
+    if (cfg.enabled && isPro()){
       const earned = Math.floor(fromCents(totals.total) / (cfg.spendPer || 100)) * (cfg.earnPer || 1);
       if (earned > 0){
         customer.points = (customer.points || 0) + earned;
@@ -2084,8 +2136,9 @@ function renderShell(){
     </button><div class="side-sep"></div>` + NAV.map(item => {
     if (item.sep) return '<div class="side-sep"></div>';
     const on = UI.view === item.id;
-    return `<button class="side-btn ${on ? 'on' : ''}" data-view="${item.id}" aria-label="${attr(item.label)}" aria-current="${on ? 'page' : 'false'}" title="${attr(item.label)}">
-      ${icon(item.icon, 18)}<span class="s-label">${esc(item.label)}</span></button>`;
+    const locked = !isPro() && !!PRO_VIEWS[item.id];
+    return `<button class="side-btn ${on ? 'on' : ''} ${locked ? 'locked' : ''}" data-view="${item.id}" aria-label="${attr(item.label)}${locked ? ' (Pro)' : ''}" aria-current="${on ? 'page' : 'false'}" title="${attr(item.label)}${locked ? ' · Pro' : ''}">
+      ${icon(item.icon, 18)}<span class="s-label">${esc(item.label)}</span>${locked ? `<span class="lock-badge">${icon('lock', 10)}</span>` : ''}</button>`;
   }).join('') + '<div class="spacer"></div>' +
     `<button class="side-btn" data-action="help" aria-label="Keyboard shortcuts" title="Keyboard shortcuts">${icon('help', 18)}<span class="s-label">Shortcuts</span></button>` +
     `<button class="side-btn" data-action="lock" aria-label="Lock session" title="Lock session">${icon('lock', 18)}<span class="s-label">Lock session</span></button>`;
@@ -2093,6 +2146,7 @@ function renderShell(){
 
   setUser(currentUser());
   refreshNotifDot();
+  refreshPlanChip();
   updateNetPill();
 }
 
@@ -2123,6 +2177,7 @@ const RENDERERS = {};
 function navigate(view, opts){
   const o = opts || {};
   if (!RENDERERS[view]) view = 'dashboard';
+  if (!isPro() && PRO_VIEWS[view]){ openPlans(PRO_VIEWS[view]); return; }
   UI.view = view;
   UI._animate = true;
   try{ if (location.hash.slice(1) !== view) history.replaceState(null, '', '#' + view); }catch(e){ location.hash = view; }
@@ -2145,6 +2200,13 @@ function render(){
   updateHeaderFor(view);
 }
 function afterRender(view){
+  if (view === 'settings'){
+    const tab = $('.tabs .on');
+    if (tab && tab.parentElement){
+      const bar = tab.parentElement;
+      bar.scrollLeft = Math.max(0, tab.offsetLeft - 12);
+    }
+  }
   if (view === 'pos'){
     renderProductGrid();
     renderCartPanel();
@@ -2974,6 +3036,8 @@ RENDERERS.products = function(){
   const value = inventoryValue();
   return pageHead('Products', `${DB.products.filter(p => p.active !== false).length} active · ${DB.products.filter(p => p.active === false).length} archived · stock valued at ${money(value)}`,
     `<div class="seg"><button data-archived="0" class="${!UI.productArchived ? 'on' : ''}">Active</button><button data-archived="1" class="${UI.productArchived ? 'on' : ''}">Archived</button></div>
+     ${!isPro() ? `<span class="chip ${planUsage('products').reached ? 'amber' : 'grey'}">${planUsage('products').used} / ${PLAN_LIMITS.products} products · Free</span>
+       <button class="btn" data-action="upgrade">${icon('lock', 13)} Upgrade</button>` : ''}
      <div class="search-box" style="width:200px">${icon('search', 14)}<input type="search" id="prodSearch" placeholder="Search name, SKU, barcode…" value="${attr(UI.productQuery)}"></div>
      <button class="btn" data-action="import-products">${icon('upload', 14)} Import</button>
      <button class="btn" data-action="export-products">${icon('download', 14)} Export</button>
@@ -3010,6 +3074,10 @@ RENDERERS.products = function(){
 };
 
 function productForm(product){
+  if (!product && !isPro() && DB.products.length >= PLAN_LIMITS.products){
+    openPlans('Product limit');
+    return;
+  }
   const p = product || {};
   formModal({
     title: product ? 'Edit product' : 'New product',
@@ -3178,6 +3246,7 @@ RENDERERS.customers = function(){
   const owed = sum(DB.customers, c => c.balance || 0);
   return pageHead('Customers', `${DB.customers.length} accounts · ${money(owed)} outstanding credit`,
     `<div class="search-box" style="width:200px">${icon('search', 14)}<input type="search" id="custSearch" placeholder="Search customers…" value="${attr(UI.custQuery || '')}"></div>
+     ${!isPro() ? `<span class="chip ${planUsage('customers').reached ? 'amber' : 'grey'}">${planUsage('customers').used} / ${PLAN_LIMITS.customers} customers · Free</span>` : ''}
      <button class="btn" data-action="export-customers">${icon('download', 14)} Export</button>
      <button class="btn primary" data-action="new-customer">${icon('plus', 14)} Add customer</button>`
   ) + `
@@ -3207,6 +3276,10 @@ RENDERERS.customers = function(){
 };
 
 function customerForm(cust){
+  if (!cust && !isPro() && DB.customers.length >= PLAN_LIMITS.customers){
+    openPlans('Customer limit');
+    return;
+  }
   const c = cust || {};
   formModal({
     title: cust ? 'Edit customer' : 'New customer',
@@ -3758,7 +3831,7 @@ RENDERERS.settings = function(){
   const tab = UI.settingsTab || 'business';
   const tabs = [
     ['business','Business'],['tax','Tax & pricing'],['receipt','Receipts'],
-    ['modules','Modules'],['data','Data & backup'],['about','About']
+    ['modules','Modules'],['plan','Plan & licence'],['data','Data & backup'],['about','About']
   ];
   return pageHead('Settings', 'Changes are saved to this browser immediately',
     `<button class="btn primary" data-action="save-settings">${icon('save', 14)} Save settings</button>`) + `
@@ -3767,6 +3840,7 @@ RENDERERS.settings = function(){
 };
 
 function settingsPane(tab){
+  if (tab === 'plan') return planSettingsPane();
   const c = DB.config;
   if (tab === 'business') return `<div class="card">
     <div class="card-head"><div class="card-icon">${icon('store', 13)}</div><div class="grow"><h3>Business profile</h3><div class="muted">Shown on receipts and the dashboard</div></div></div>
@@ -3843,7 +3917,7 @@ function settingsPane(tab){
       ['expiry','Batch &amp; expiry','Record expiry dates and receive alerts', c.modules.expiry],
       ['tables','Tables &amp; orders','Restaurant table service', c.modules.tables],
       ['services','Services &amp; jobs','Labour-based service jobs', c.modules.services],
-      ['loyalty','Loyalty programme','Points on completed sales', !!(c.loyalty && c.loyalty.enabled)],
+      ['loyalty','Loyalty programme','Points on completed sales · Pro', !!(c.loyalty && c.loyalty.enabled)],
       ['variants','Product variants','Size / colour variants', c.modules.variants]
     ];
     return `<div class="card">
@@ -3941,7 +4015,8 @@ function saveSettings(){
   if (get('set_footer') !== undefined) c.footer = get('set_footer');
   if (get('set_loyaltyOn') !== undefined){
     c.loyalty = c.loyalty || {};
-    c.loyalty.enabled = $('#set_loyaltyOn').checked;
+    c.loyalty.enabled = $('#set_loyaltyOn').checked && isPro();
+    if ($('#set_loyaltyOn').checked && !isPro()) toast('Loyalty points are a Pro feature.', 'warn', 5000);
     c.loyalty.spendPer = Number(get('set_loyaltySpend')) || 100;
     c.loyalty.earnPer = Number(get('set_loyaltyEarn')) || 1;
   }
@@ -3950,7 +4025,7 @@ function saveSettings(){
   $$('[data-module]').forEach(el => {
     const k = el.dataset.module;
     if (k === 'stock') return;
-    if (k === 'loyalty'){ c.loyalty = c.loyalty || {}; c.loyalty.enabled = el.checked; return; }
+    if (k === 'loyalty'){ c.loyalty = c.loyalty || {}; c.loyalty.enabled = el.checked && isPro(); return; }
     c.modules = c.modules || {};
     c.modules[k] = el.checked;
   });
@@ -4094,6 +4169,352 @@ function openShortcuts(){
   });
 }
 /* ============================================================================
+   Plans & licensing
+   Free / Pro gating, PayHere one-time checkout and licence activation.
+
+   No card data and no merchant secret is stored in this file. The Cloudflare
+   Worker creates the PayHere hash, verifies the server notification and issues
+   a signed lifetime licence; this file only stores the resulting key.
+   ========================================================================== */
+
+const DEFAULT_LICENSE_API = 'https://unipos-licensing.manujadamsara11.workers.dev';
+const PLAN_FALLBACK = { price: 10000, currency: 'LKR', product: 'UniPOS Pro — lifetime licence' };
+const PLAN_LIMITS = { products: 20, customers: 20 };
+const PRO_VIEWS = {
+  inventory: 'Inventory',
+  purchases: 'Purchases',
+  suppliers: 'Suppliers',
+  expenses: 'Expenses',
+  cash: 'Cash management',
+  employees: 'Staff accounts',
+  reports: 'Reports & analytics',
+  audit: 'Audit log'
+};
+
+function getLicenseApi(){
+  try{
+    return (localStorage.getItem('unipos_license_api') || DEFAULT_LICENSE_API).replace(/\/+$/, '');
+  }catch(e){ return DEFAULT_LICENSE_API; }
+}
+function setLicenseApi(url){
+  try{
+    if (url) localStorage.setItem('unipos_license_api', String(url).replace(/\/+$/, ''));
+    else localStorage.removeItem('unipos_license_api');
+    localStorage.removeItem('unipos_plan_cfg');
+  }catch(e){}
+}
+function currentPlan(){
+  return (DB && DB.meta && DB.meta.plan) || { tier:'free' };
+}
+function isPro(){ return currentPlan().tier === 'pro'; }
+function planUsage(kind){
+  const max = PLAN_LIMITS[kind];
+  const used = kind === 'products' ? DB.products.length : DB.customers.length;
+  return { used, max, reached: used >= max, left: Math.max(0, max - used) };
+}
+function planPriceText(cfg){
+  const c = cfg || PLAN_FALLBACK;
+  const symbol = c.currency === 'LKR' ? 'Rs' : (c.currency || 'Rs');
+  return symbol + ' ' + Number(c.price || 0).toLocaleString('en-LK');
+}
+function refreshPlanChip(){
+  const chip = $('#planChip');
+  if (!chip) return;
+  const pro = isPro();
+  chip.textContent = pro ? 'Pro' : 'Free';
+  chip.classList.toggle('pro', pro);
+  chip.title = pro ? 'Pro licence active — manage in Settings' : 'Free plan — compare Pro';
+}
+
+/* ------------------------------------------------------------ plan config */
+let _planCfg = null;
+async function loadPlanConfig(force){
+  if (_planCfg && !force) return _planCfg;
+  try{
+    const cached = JSON.parse(localStorage.getItem('unipos_plan_cfg') || 'null');
+    if (cached && !force && Date.now() - cached.at < 6 * 3600e3 && cached.cfg){
+      _planCfg = cached.cfg; return _planCfg;
+    }
+  }catch(e){}
+  try{
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 6000);
+    const res = await fetch(getLicenseApi() + '/api/config', { signal: ctrl.signal });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const cfg = await res.json();
+    _planCfg = cfg;
+    try{ localStorage.setItem('unipos_plan_cfg', JSON.stringify({ at: Date.now(), cfg })); }catch(e){}
+    return cfg;
+  }catch(e){ return PLAN_FALLBACK; }
+}
+
+/* --------------------------------------------------------------- plan UI */
+function openPlans(reason){
+  if (isPro()){ openPlanStatus(); return; }
+  const cfg = _planCfg || PLAN_FALLBACK;
+  const owner = DB.config.owner || '';
+  openModal({
+    title: 'Upgrade to Pro',
+    size: 'wide',
+    noFocus: true,
+    body: `
+      ${reason ? `<div class="notice">${icon('lock', 13)}<span><b>${esc(reason)}</b> is part of Pro. Pay once and keep it for life.</span></div>` : ''}
+      <div class="plan-compare">
+        <div class="plan-box">
+          <span class="chip grey">Free</span>
+          <div class="plan-price">Rs 0</div>
+          <div class="tiny">For getting started</div>
+          <ul class="plan-list">
+            <li>${icon('check')}<span>POS checkout and sales recording</span></li>
+            <li>${icon('check')}<span>Up to ${PLAN_LIMITS.products} products and ${PLAN_LIMITS.customers} customers</span></li>
+            <li>${icon('check')}<span>Cash, card and other payment recording</span></li>
+            <li>${icon('check')}<span>Basic CSV export and backup</span></li>
+            <li class="off">${icon('x')}<span>Inventory, purchases and suppliers</span></li>
+            <li class="off">${icon('x')}<span>Reports, audit log and staff accounts</span></li>
+          </ul>
+        </div>
+        <div class="plan-box pro">
+          <span class="chip solid">Pro · lifetime</span>
+          <div class="plan-price" id="planPrice">${esc(planPriceText(cfg))}</div>
+          <div class="tiny">One-time payment · no subscription</div>
+          <ul class="plan-list">
+            <li>${icon('check')}<span><b>Unlimited</b> products and customers</span></li>
+            <li>${icon('check')}<span>Inventory, stock movements and adjustments</span></li>
+            <li>${icon('check')}<span>Purchases, suppliers and supplier payments</span></li>
+            <li>${icon('check')}<span>Expenses and cash management with shifts</span></li>
+            <li>${icon('check')}<span>Staff accounts and permissions</span></li>
+            <li>${icon('check')}<span>Full reports, analytics and audit log</span></li>
+            <li>${icon('check')}<span>Loyalty points and credit accounts</span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="grid2" style="margin-top:2px">
+        <div class="field"><label>Full name</label><input id="payName" value="${attr(owner)}" autocomplete="name"></div>
+        <div class="field"><label>Email for receipt</label><input id="payEmail" type="email" placeholder="you@business.com" autocomplete="email"></div>
+        <div class="field"><label>Phone</label><input id="payPhone" type="tel" placeholder="07X XXX XXXX" autocomplete="tel"></div>
+        <div class="field"><label>Payment</label><input value="PayHere · card / wallet" disabled></div>
+      </div>
+      <div class="plan-box">
+        <div style="font-size:12px;font-weight:650">Already purchased?</div>
+        <div style="display:flex;gap:7px;margin-top:7px">
+          <input id="licKey" placeholder="Paste your licence key" style="flex:1;min-width:0;font-size:11.5px">
+          <button type="button" class="btn sm" id="licActivate">Activate</button>
+        </div>
+      </div>
+      <div class="tiny">Payments are processed by PayHere. UniPOS never sees your card details. The licence is stored on this device and can be re-activated anywhere with the same key.</div>
+    `,
+    onMount(body){
+      loadPlanConfig().then(c => {
+        const el = $('#planPrice');
+        if (el) el.textContent = planPriceText(c);
+        const payBtn = $$('#modalFoot .btn').find(b => /^Pay /.test(b.textContent));
+        if (payBtn) payBtn.textContent = 'Pay ' + planPriceText(c);
+      });
+      const act = $('#licActivate', body);
+      if (act) act.onclick = () => activateLicenseKey($('#licKey').value.trim());
+      const key = $('#licKey', body);
+      if (key) key.onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); activateLicenseKey(key.value.trim()); } };
+    },
+    actions: [
+      { label: 'Not now', kind: 'ghost' },
+      { label: 'Pay ' + planPriceText(cfg), kind: 'primary', keepOpen: true, onClick(){ startPayHere(); } }
+    ]
+  });
+}
+
+function openPlanStatus(){
+  const p = currentPlan();
+  openModal({
+    title: 'Plan & licence', size: 'narrow',
+    body: `
+      <div class="plan-current">
+        <div class="plan-orb pro">${icon('check', 20)}</div>
+        <div>
+          <div style="font-size:17px;font-weight:700;letter-spacing:-.4px">UniPOS Pro</div>
+          <div class="tiny">Lifetime licence · active on this device</div>
+        </div>
+      </div>
+      <div class="kv"><span>Licensed to</span><b>${esc(p.email || '—')}</b></div>
+      <div class="kv"><span>Activated</span><b>${esc(p.activatedAt ? fmtDate(p.activatedAt) : '—')}</b></div>
+      <div class="kv"><span>Order</span><b>${esc(p.order || '—')}</b></div>
+      <div class="field"><label>Licence key</label><textarea id="myLic" readonly rows="3" style="font-size:10.5px">${esc(p.license || '')}</textarea></div>
+    `,
+    actions: [
+      { label: 'Close', kind: 'ghost' },
+      { label: 'Copy key', kind: 'primary', onClick(){
+        const el = $('#myLic');
+        if (el){ el.select(); try{ navigator.clipboard.writeText(el.value); }catch(e){} }
+        toast('Licence key copied.');
+      }}
+    ]
+  });
+}
+
+/* ------------------------------------------------------------- PayHere */
+async function startPayHere(){
+  const name = ($('#payName') || {}).value ? $('#payName').value.trim() : '';
+  const email = ($('#payEmail') || {}).value ? $('#payEmail').value.trim() : '';
+  const phone = ($('#payPhone') || {}).value ? $('#payPhone').value.trim() : '';
+  if (name.length < 3){ toast('Enter your full name for the receipt.', 'err'); $('#payName').focus(); return; }
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ toast('Enter a valid email address.', 'err'); $('#payEmail').focus(); return; }
+  if (phone.replace(/\D/g, '').length < 9){ toast('Enter a valid phone number.', 'err'); $('#payPhone').focus(); return; }
+
+  const payBtn = $$('#modalFoot .btn').find(b => /^Pay /.test(b.textContent));
+  if (payBtn){ payBtn.disabled = true; payBtn.textContent = 'Opening PayHere…'; }
+
+  try{
+    const res = await fetch(getLicenseApi() + '/api/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, phone })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data || !data.fields) throw new Error(data.error || 'Checkout is not available right now.');
+    try{ localStorage.setItem('unipos_pending_order', data.orderId || data.fields.order_id || ''); }catch(e){}
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = data.action;
+    form.style.display = 'none';
+    Object.keys(data.fields).forEach(k => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = k;
+      input.value = String(data.fields[k]);
+      form.appendChild(input);
+    });
+    document.body.appendChild(form);
+    form.submit();
+  }catch(err){
+    if (payBtn){ payBtn.disabled = false; payBtn.textContent = 'Pay ' + planPriceText(_planCfg || PLAN_FALLBACK); }
+    toast('Could not start checkout: ' + (err.message || 'network error'), 'err', 7000);
+  }
+}
+
+/* ------------------------------------------------------ licence handling */
+function applyLicense(license, email, order){
+  DB.meta.plan = {
+    tier: 'pro',
+    license: license || '',
+    email: email || '',
+    order: order || '',
+    activatedAt: new Date().toISOString()
+  };
+  saveDB();
+  audit('plan.activated', 'config', 'plan', { note: 'Pro licence activated' });
+  refreshPlanChip();
+  if (PRO_VIEWS[UI.view]) UI.view = 'dashboard';
+  const open = $('#overlay').classList.contains('on');
+  if (open) closeModal();
+  render();
+  toast('Pro unlocked — thank you!');
+}
+
+async function activateLicenseKey(key, quiet){
+  if (!key){
+    if (!quiet) toast('Paste your licence key first.', 'err');
+    return false;
+  }
+  try{
+    const res = await fetch(getLicenseApi() + '/api/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ license: key })
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.valid) throw new Error(d.error || 'That licence key was not recognised.');
+    applyLicense(key, d.email, d.order);
+    return true;
+  }catch(err){
+    if (!quiet) toast(err.message || 'Could not verify the licence.', 'err', 7000);
+    return false;
+  }
+}
+
+async function claimOrder(orderId){
+  if (!orderId) return false;
+  try{
+    const res = await fetch(getLicenseApi() + '/api/license?order_id=' + encodeURIComponent(orderId));
+    const d = await res.json().catch(() => ({}));
+    if (res.ok && d.ok && d.license){ applyLicense(d.license, d.email, d.order); return true; }
+    toast('Payment received — your licence is still being confirmed. Reopen this page in a minute.', 'warn', 8000);
+  }catch(e){
+    toast('Could not confirm the payment. Check the connection and reopen this page.', 'err', 7000);
+  }
+  return false;
+}
+
+async function verifyStoredLicense(){
+  const p = currentPlan();
+  if (p.tier !== 'pro' || !p.license || !navigator.onLine) return;
+  try{
+    const res = await fetch(getLicenseApi() + '/api/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ license: p.license })
+    });
+    if (!res.ok) return;
+    const d = await res.json();
+    if (d && d.valid === false){
+      DB.meta.plan = { tier:'free' };
+      saveDB(); refreshPlanChip();
+      if (PRO_VIEWS[UI.view]) render();
+      toast('Your Pro licence is no longer valid. Contact support.', 'warn', 8000);
+    }
+  }catch(e){ /* offline: keep the cached licence */ }
+}
+
+/* ------------------------------------------------------- settings panel */
+function planSettingsPane(){
+  const pro = isPro();
+  const p = currentPlan();
+  const up = planUsage('products');
+  const uc = planUsage('customers');
+  return `<div class="card">
+    <div class="card-head">
+      <div class="card-icon">${icon('shield', 13)}</div>
+      <div class="grow"><h3>Plan &amp; licence</h3><div class="muted">One-time payment · lifetime licence · no subscription</div></div>
+      <span class="chip ${pro ? '' : 'amber'}">${pro ? 'PRO' : 'FREE'}</span>
+    </div>
+    <div class="plan-current">
+      <div class="plan-orb ${pro ? 'pro' : ''}">${pro ? icon('check', 20) : icon('box', 20)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:17px;font-weight:700;letter-spacing:-.4px">${pro ? 'UniPOS Pro' : 'UniPOS Free'}</div>
+        <div class="tiny">${pro ? 'Lifetime licence · active on this device' : 'Basic POS for small catalogues'}</div>
+      </div>
+      ${pro ? '' : `<button class="btn primary" data-action="upgrade">${icon('arrowUpRight', 14)} Upgrade</button>`}
+    </div>
+    ${pro ? `
+      <div style="margin-top:14px">
+        <div class="kv"><span>Licensed to</span><b>${esc(p.email || '—')}</b></div>
+        <div class="kv"><span>Activated</span><b>${esc(p.activatedAt ? fmtDate(p.activatedAt) : '—')}</b></div>
+        <div class="kv"><span>Order</span><b>${esc(p.order || '—')}</b></div>
+        <div class="field" style="margin-top:10px"><label>Licence key</label><textarea id="set_licence" readonly rows="2" style="font-size:10.5px">${esc(p.license || '')}</textarea></div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px">
+          <button class="btn sm" data-action="copy-license">Copy key</button>
+          <button class="btn sm" data-action="verify-license">${icon('refresh', 13)} Verify now</button>
+          <button class="btn sm danger" data-action="deactivate-license">Remove from this device</button>
+        </div>
+      </div>` : `
+      <div class="notice" style="margin-top:14px;display:flex">${icon('info', 13)}<span>Free includes ${PLAN_LIMITS.products} products and ${PLAN_LIMITS.customers} customers. Pro removes both limits and unlocks inventory, purchases, suppliers, expenses, cash management, staff accounts, reports and the audit log.</span></div>
+      <div class="kv" style="margin-top:10px"><span>Products</span><b>${up.used} / ${up.max}</b></div>
+      <div class="kv"><span>Customers</span><b>${uc.used} / ${uc.max}</b></div>
+      <div class="plan-box" style="margin-top:12px">
+        <div style="font-size:12px;font-weight:650">Already purchased a licence?</div>
+        <div style="display:flex;gap:7px;margin-top:7px;flex-wrap:wrap">
+          <input id="set_licence" placeholder="Paste your licence key" style="flex:1;min-width:180px;font-size:11.5px">
+          <button class="btn sm primary" data-action="activate-license">Activate</button>
+        </div>
+      </div>`}
+    <div class="field" style="margin-top:16px;max-width:460px">
+      <label>Licence server</label>
+      <input id="licenseApiInput" value="${attr(getLicenseApi())}" placeholder="https://license.example.com">
+      <div class="hint">Cloudflare Worker base URL. Leave the default for the hosted UniPOS licence service.</div>
+    </div>
+    <button class="btn sm" data-action="save-license-api" style="margin-top:8px">Save server URL</button>
+  </div>`;
+}
+/* ============================================================================
    Part 8: event wiring, setup wizard, session lock, boot
    ========================================================================== */
 
@@ -4225,6 +4646,41 @@ function saveHeld(){
 
 /* ------------------------------ actions map ----------------------------- */
 const ACTIONS = {
+  'upgrade': () => openPlans(''),
+  'activate-license': () => activateLicenseKey(($('#set_licence') || {}).value ? $('#set_licence').value.trim() : ''),
+  'save-license-api': () => {
+    const el = $('#licenseApiInput');
+    if (!el) return;
+    const url = el.value.trim();
+    if (url && !/^https?:\/\//i.test(url)){ toast('Enter a full https:// URL.', 'err'); return; }
+    setLicenseApi(url);
+    _planCfg = null;
+    toast('Licence server saved.');
+  },
+  'copy-license': () => {
+    const el = $('#set_licence');
+    if (!el) return;
+    el.select();
+    try{ navigator.clipboard.writeText(el.value); toast('Licence key copied.'); }
+    catch(e){ toast('Select the key and copy it manually.', 'warn'); }
+  },
+  'verify-license': async () => {
+    const key = currentPlan().license;
+    if (!key){ toast('No licence stored on this device.', 'warn'); return; }
+    toast('Verifying licence…');
+    const ok = await activateLicenseKey(key, true);
+    toast(ok ? 'Licence is valid.' : 'Could not verify the licence. Check the connection.', ok ? '' : 'err');
+  },
+  'deactivate-license': () => {
+    confirmDialog('Remove Pro from this device?', 'Your data stays, but Pro screens lock until you activate the same key again.', () => {
+      DB.meta.plan = { tier:'free' };
+      audit('plan.deactivated', 'config', 'plan', { note:'Licence removed from this device' });
+      saveDB();
+      if (PRO_VIEWS[UI.view]) UI.view = 'dashboard';
+      render();
+      toast('Pro licence removed from this device.');
+    }, { danger:true, yes:'Remove licence' });
+  },
   'toggle-nav': () => {
     UI.navOpen = !UI.navOpen;
     try{ localStorage.setItem('unipos_nav_open_v1', UI.navOpen ? '1' : '0'); }catch(e){}
@@ -4286,7 +4742,7 @@ const ACTIONS = {
     }, {value:getCart().note || '', yes:'Save note'});
   },
   'quick-customer': () => {
-    const el = $('#cartCustomer');
+    if (!isPro() && DB.customers.length >= PLAN_LIMITS.customers){ openPlans('Customer limit'); return; }
     formModal({
       title:'Add customer', size:'narrow',
       fields:[{key:'name', label:'Full name', required:true}, {key:'phone', label:'Telephone'}],
@@ -4298,8 +4754,8 @@ const ACTIONS = {
     });
   },
   'new-product': () => productForm(null),
-  'adjust-stock': () => openAdjustStock(null),
-  'physical-count': openStockCount,
+  'adjust-stock': () => { if (!isPro()){ openPlans('Inventory'); return; } openAdjustStock(null); },
+  'physical-count': () => { if (!isPro()){ openPlans('Inventory'); return; } openStockCount(); },
   'new-category': () => {
     promptDialog('New category', 'Category name', v => {
       DB.categories.push({id:uid('cat'), name:v});
@@ -4378,6 +4834,7 @@ const ACTIONS = {
   'global-search': openGlobalSearch
 };
 function cashMovement(type){
+  if (!isPro()){ openPlans('Cash management'); return; }
   const s = activeShift();
   if (!s){ toast('Open a register first.', 'warn'); return; }
   formModal({
@@ -4539,6 +4996,10 @@ function openProductImport(){
       {label:'Import rows', kind:'primary', keepOpen:true, onClick(){
         const data = window.__importRows;
         if (!data || !data.length){ toast('Choose a CSV file first.', 'err'); return false; }
+        if (!isPro() && DB.products.length + data.length > PLAN_LIMITS.products){
+          toast(`Free plan allows ${PLAN_LIMITS.products} products. You have ${DB.products.length} — upgrade to import ${data.length} more.`, 'err', 7000);
+          return false;
+        }
         let added = 0, skipped = 0;
         data.forEach(r => {
           const name = (r.name || '').trim();
@@ -4676,6 +5137,7 @@ document.addEventListener('click', e => {
           saveDB(); render(); toast('Product ' + (p.active ? 'restored.' : 'archived — historical sales are kept.'));
         }},
         {label:'Duplicate', kind:'', onClick(){
+          if (!isPro() && DB.products.length >= PLAN_LIMITS.products){ openPlans('Product limit'); return; }
           const copy = JSON.parse(JSON.stringify(p));
           copy.id = uid('pr'); copy.name = p.name + ' (copy)'; copy.sku = (p.sku || '') + '-C';
           copy.barcode = ''; copy.createdAt = new Date().toISOString(); copy.stock = 0;
@@ -5004,6 +5466,8 @@ function boot(){
   DB.config.modules = Object.assign(defaultConfig().modules, DB.config.modules || {});
   DB.config.loyalty = Object.assign(defaultConfig().loyalty, DB.config.loyalty || {});
   DB.employees = DB.employees || [];
+  DB.meta = DB.meta || {};
+  if (!DB.meta.plan) DB.meta.plan = { tier:'free' };
   if (!DB.employees.length){
     DB.employees.push({id:uid('em'), name:DB.config.owner || 'Owner', role:'Owner', pinHash:DB.config.pinHash || '', active:true, createdAt:new Date().toISOString()});
   }
@@ -5012,7 +5476,18 @@ function boot(){
   $('#setup').classList.remove('on');
   const hashView = location.hash.slice(1);
   if (hashView && RENDERERS[hashView]) UI.view = hashView;
+  if (!isPro() && PRO_VIEWS[UI.view]) UI.view = 'dashboard';
   render();
+  // PayHere return / direct licence link
+  try{
+    const q = new URLSearchParams(location.search);
+    const orderId = q.get('order_id');
+    const lic = q.get('license');
+    if (orderId) setTimeout(() => claimOrder(orderId), 700);
+    else if (lic) setTimeout(() => activateLicenseKey(lic), 700);
+    else if (isPro()) setTimeout(verifyStoredLicense, 1600);
+    if (q.get('cancelled')) toast('Checkout cancelled — nothing was charged.', 'warn', 5000);
+  }catch(e){}
   scanAlerts();
   refreshNotifDot();
   startAutoLock();
